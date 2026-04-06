@@ -165,7 +165,6 @@ BEGIN
     SET NOCOUNT ON;
     SET @valido = 0;
 
-    -- Rejeita CPFs com todos os dígitos iguais
     IF @cpf IN ('00000000000','11111111111','22222222222','33333333333',
                 '44444444444','55555555555','66666666666','77777777777',
                 '88888888888','99999999999')
@@ -179,7 +178,7 @@ BEGIN
     DECLARE @d1     INT;
     DECLARE @d2     INT;
 
-    -- Primeiro dígito verificador
+
     SET @soma =
             CAST(SUBSTRING(@cpf,1,1) AS INT) * 10 +
             CAST(SUBSTRING(@cpf,2,1) AS INT) * 9  +
@@ -197,7 +196,7 @@ BEGIN
     IF @d1 <> CAST(SUBSTRING(@cpf,10,1) AS INT)
         RETURN;
 
-    -- Segundo dígito verificador
+
     SET @soma =
             CAST(SUBSTRING(@cpf,1,1) AS INT) * 11 +
             CAST(SUBSTRING(@cpf,2,1) AS INT) * 10 +
@@ -264,7 +263,6 @@ BEGIN
     DECLARE @sufixo     INT;
     DECLARE @candidato  BIGINT;
 
-    -- Garante um RA único
     SET @candidato = 0;
     WHILE @candidato = 0 OR EXISTS (SELECT 1 FROM aluno WHERE ra = @candidato)
         BEGIN
@@ -301,30 +299,25 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. Valida CPF
         DECLARE @cpf_valido BIT;
         EXEC validar_cpf @cpf, @cpf_valido OUTPUT;
         IF @cpf_valido = 0
             THROW 50001, 'CPF inválido.', 1;
 
-        -- 2. Valida idade mínima
         DECLARE @idade_valida BIT;
         EXEC sp_validar_idade @data_nascimento, @idade_valida OUTPUT;
         IF @idade_valida = 0
             THROW 50002, 'Aluno deve ter idade igual ou superior a 16 anos.', 1;
 
-        -- 3. Calcula prazo limite de graduação
         DECLARE @ano_limite         INT;
         DECLARE @semestre_limite    INT;
         EXEC calcular_prazo_graduacao
              @ano_ingresso, @semestre_ingresso,
              @ano_limite OUTPUT, @semestre_limite OUTPUT;
 
-        -- 4. Gera RA
         DECLARE @ra BIGINT;
         EXEC sp_gerar_ra @ano_ingresso, @semestre_ingresso, @ra OUTPUT;
 
-        -- 5. Insere o aluno
         SET IDENTITY_INSERT aluno ON;
         INSERT INTO aluno (
             ra, cpf, nome, nome_social, data_nascimento,
@@ -368,11 +361,9 @@ BEGIN
 
     BEGIN TRY
 
-        -- 1. Verifica se o aluno existe
         IF NOT EXISTS (SELECT 1 FROM aluno WHERE ra = @ra)
             THROW 50010, 'Aluno não encontrado.', 1;
 
-        -- 2. Verifica se a disciplina pertence ao curso do aluno
         IF NOT EXISTS (
             SELECT 1
             FROM curso_disciplina cd
@@ -382,7 +373,6 @@ BEGIN
         )
             THROW 50011, 'Disciplina não pertence ao curso do aluno.', 1;
 
-        -- 3. Verifica se já está matriculado nessa disciplina nesse semestre
         IF EXISTS (
             SELECT 1 FROM matricula
             WHERE ra = @ra
@@ -391,7 +381,6 @@ BEGIN
         )
             THROW 50012, 'Aluno já matriculado nessa disciplina nesse semestre.', 1;
 
-        -- 4. Verifica se a disciplina já foi aprovada em semestre anterior
         IF EXISTS (
             SELECT 1 FROM matricula
             WHERE ra = @ra
@@ -400,7 +389,6 @@ BEGIN
         )
             THROW 50013, 'Aluno já foi aprovado nessa disciplina.', 1;
 
-        -- 5. Verifica conflito de horário no mesmo semestre
         IF EXISTS (
             SELECT 1
             FROM matricula m
@@ -417,7 +405,6 @@ BEGIN
         )
             THROW 50014, 'Conflito de horário com outra disciplina já matriculada.', 1;
 
-        -- 6. Insere a matrícula
         INSERT INTO matricula (ra, id_curso_disciplina, id_semestre, status)
         VALUES (@ra, @id_curso_disciplina, @id_semestre, 'Matriculado');
 
